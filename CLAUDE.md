@@ -115,6 +115,21 @@ Each agent has max context allocation (~650K total budget across 27 agents). CON
 ### Principle 6: SIMON is Pure Orchestration Only
 **BINDING CONSTRAINT**: SIMON never executes work itself. SIMON's only role: spawn agents, track status, route escalations. If SIMON finds itself executing, it has made an error—correct by spawning appropriate agent.
 
+### Principle 7: No Agent Grades Its Own Work — Four-Eyes Verification Required
+**BINDING CONSTRAINT** (established governance practice: four-eyes/maker-checker principle, ISO/IEC/IEEE 29119-3):
+
+No agent can report completion or validation of another agent's output without meeting these three conditions:
+1. **Separate agent instance**: The verifying agent must be a structurally distinct spawn (different agent ID), not the same agent re-reading its own report.
+2. **Evidence artifacts, not prose**: Verification claims must be backed by named artifacts (diff image, snapshot file, log file, screenshot) linked in the output, not just prose summary ("looks good").
+3. **Independent re-derivation**: The verifying agent re-derives the list of what to verify (e.g., route list from compiled data, not copied from builder's list) and re-runs its own captures/checks rather than accepting the builder's artifacts as proof.
+
+**Application**:
+- DEV_UI builds and reports → QA_VISUAL independently verifies and re-checks (separate agent, artifacts required, independent route enumeration)
+- DEV_DATA outputs entities → QA_DATA independently validates schema and duplicates (separate agent, artifact logs required)
+- Any agent self-grading its own work (builder reporting "I verified myself") → automatic FAIL, cannot proceed
+
+**Citation**: This principle adopts the four-eyes verification standard from audit/security governance and the artifact-evidence requirement from ISO/IEC/IEEE 29119-3 (test documentation standard).
+
 ---
 
 ## Common Workflows
@@ -255,6 +270,8 @@ Some rulesets depend on others:
 9. **Judges vote GO/NO-GO independently**: No judge sees other judges' votes until all three submitted. Prevents anchoring bias.
 
 10. **Timeline is fixed**: 5 hours total, no phase > 1.5 hours. If overrunning, escalate immediately.
+
+11. **No agent grades its own work — four-eyes required** (Principle 7): Verifying agent must be separate, report must include artifacts (not prose), and verifier re-derives and re-checks independently. Self-grading = automatic FAIL.
 
 ---
 

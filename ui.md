@@ -3,6 +3,38 @@
 **Primary Mandate**: Web app implementation must match mockup EXACTLY (except data content).
 Data content can vary (names, dates, numbers), but every other aspect must be identical.
 
+Validation occurs in TWO TIERS (both must pass before APPROVAL):
+- **Tier 0 (Route Health — Smoke Test)**: Every live route returns HTTP 200 and fires zero console errors. Blocking prerequisite; gate before visual inspection.
+- **Tier 1+ (Visual/Structural Parity)**: Snapshot-based visual and structural comparison; evidence artifacts required; pixel/DOM/typography/spacing/interaction-state checks per §1–14.
+
+---
+
+## 0. ROUTE HEALTH — SMOKE TEST (TIER 0, BLOCKING PREREQUISITE)
+
+Before any visual parity work on a page, the route must be known to load correctly.
+
+**What this validates**:
+- ✅ Route resolves to a live page (HTTP 200, no 404/500)
+- ✅ Page hydrates with zero `console.error` or uncaught exceptions
+- ✅ Page is not a stub/placeholder/pending-implementation state
+- ❌ HTTP status not 200 = FAIL (cannot proceed to visual tier)
+- ❌ Console errors present = FAIL (indicates incomplete/broken implementation)
+
+**Coverage requirement (EXHAUSTIVE, not sampled)**:
+- Every live route that exists in the compiled entity data must get a tier-0 smoke check.
+- Routes derived from `orgs.json`, `people.json`, etc. — not from memory or assumption; use the actual compiled data to generate the route list.
+- Sampling is not permitted: "checked 1 org, all orgs OK" is invalid. Every distinct entity instance that will be live gets tested.
+
+**Validation approach** (cite: Linkinator crawl-all-routes pattern + Playwright console listeners):
+1. Derive routes from compiled data: e.g. for orgs, iterate `app/data/orgs.json` to get `["/organizations", "/organizations/o_rbi", "/organizations/o_air_india", ...]`.
+2. Crawl each route with Playwright or similar headless browser.
+3. Assert: `page.goto(route)` returns status 200.
+4. Assert: zero `page.on('console', msg => msg.type === 'error')` and zero `page.on('pageerror')` events during page load and initial interaction.
+5. Capture results as a structured log (JSON or CSV): `route | status | errors_found | timestamp`.
+6. **Any route that fails tier 0 must be flagged as FAIL in the final report** — cannot be masked or deferred.
+
+**Tools**: Use Playwright's built-in `page.goto()`, `page.on('console')`, `page.on('pageerror')` listeners (no separate tool needed). Optionally cite Linkinator as prior art for the crawl-all-pattern, even if implemented with Playwright.
+
 ---
 
 ## 1. OVERALL LAYOUT & STRUCTURE
@@ -550,13 +582,21 @@ If styled element wrong in browser:
 
 ---
 
-## 15. VALIDATION CHECKLIST
+## 15. VALIDATION CHECKLIST — TIER 1 (VISUAL/STRUCTURAL PARITY)
 
-For each component/section in mockup:
+**PREREQUISITE**: Route must have passed Tier 0 smoke test (§0). Do not attempt Tier 1 on a failed route.
+
+**Coverage enumeration (ANTI-SAMPLING):**
+Enumerate ALL of the following before starting Tier 1:
+- **Template coverage**: List every distinct page template type (e.g. "organizations hub", "organizations detail", "people hub", "people detail", etc. — currently ~14 types across hubs + entity details). For each template, mark whether a mockup exists. If mockup exists, one representative entity instance of that template must be checked against the mockup (equivalence partitioning: one case per class, but no class skipped).
+- **Route coverage**: List all live routes that will be deployed (e.g. `/organizations`, `/organizations/o_rbi`, `/organizations/o_air_india`, ... derived from compiled entity data, not assumed). All routes already passed Tier 0 smoke test (as a prerequisite). Now, mark which routes have mockup-backed templates vs. template-only inference (no mockup sample exists). This enumeration must be in the final report; hiding it is not permitted.
+
+**Per-component checklist** (for each component/section matching a mockup):
 
 ```
 Component: [Name]
 Section: [Location in page]
+Mockup sample used: [e.g. "organizations/o_reserve_bank_of_india" or "NONE — template inference"]
 
 Layout:
   ☐ Grid/flex structure matches
@@ -599,38 +639,76 @@ Overall:
 
 Status: ✅ PASS or ❌ FAIL
 Issues Found: [List any]
-Recommendation: [Fix or Approve]
 ```
 
 ---
 
-## 16. VALIDATION OUTPUT FORMAT
+## 16. VALIDATION OUTPUT FORMAT (TIER 1 — REQUIRED ARTIFACTS)
+
+Report must include the following fields. **Reports missing any field are automatically FAIL, regardless of prose claims.**
 
 ```
-DEV_UI Validation Report — [Component Name]
+DEV_UI Validation Report — [Page Type or Entity Instance]
+Generated: [timestamp]
+Checked by: [agent ID/name]
 
+TIER 0 PREREQUISITES
+  Tier 0 status: ✅ PASS (route health smoke test passed)
+  
+TIER 1 SCOPE & COVERAGE
+  Template types audited: [list ~14 types, mark which have mockup vs. template-only]
+  Routes checked: [n total, derived from compiled data]
+  Routes failed smoke test (Tier 0): [list or "NONE"]
+  Template representatives checked: [e.g. "organizations/o_rbi (mockup: YES), people/p_john_doe (mockup: NO — template inference)"]
+
+VISUAL COMPARISON ARTIFACTS (REQUIRED — do not skip)
+  Structural snapshot diff:
+    - Baseline: [path to mockup HTML/YAML aria snapshot]
+    - Implementation: [path to live page capture, YAML aria snapshot format]
+    - Diff file: [path to structured diff showing element tree differences]
+    - Diff result: [% elements matching, or "PASS"/"FAIL"]
+  
+  Visual (pixel) diff:
+    - Baseline screenshot: [path to mockup PNG screenshot]
+    - Implementation screenshot: [path to live page PNG screenshot]
+    - Diff image: [path to highlighted-differences PNG]
+    - Diff metric: [pixel-diff %, threshold used, e.g. "2.3% diff (threshold 5%)"]
+    - Diff result: [PASS / FLAG / FAIL]
+
+RUNTIME VALIDATION
+  Console errors captured: [path to console log, or "NONE"]
+  Pages with errors: [list routes that fired console.error, or "NONE"]
+  
+DETAILED FINDINGS (from §1–14 checklist)
+  ✅ Section layout: Matches mockup
+  ✅ Typography: All sizes and weights correct
+  ⚠️ Spacing: Card padding 1px off (11px vs 12px) — Minor, acceptable
+  ✅ Colors: All hex values match
+  ✅ Icons: Correct icon, correct color, correct size
+  ❌ Border radius: 6px implemented vs 8px in mockup — Needs fix
+  [... continue per §1–14 ...]
+
+ISSUES FOUND
+  1. Card padding: 11px (should be 12px) — Fix: Adjust CSS padding
+  2. [Any other issues]
+  
 SUMMARY
-Status: ✅ PASS or ⚠️ FLAG or ❌ FAIL
-Mockup match: [99%, 95%, 85%, etc.]
-
-DETAILS
-✅ Section layout: Matches mockup
-✅ Typography: All sizes and weights correct
-⚠️ Spacing: Card padding 1px off (11px vs 12px) — Minor, acceptable
-✅ Colors: All hex values match
-✅ Icons: Correct icon, correct color, correct size
-✅ Buttons: Hover state matches
-❌ Border radius: 6px implemented vs 8px in mockup — Needs fix
-
-ISSUES
-1. Card padding: 11px (should be 12px) — Fix: Adjust CSS padding
-2. [Any other issues]
-
+  Tier 0 status: ✅ PASS
+  Tier 1 status: ✅ PASS or ⚠️ FLAG or ❌ FAIL
+  Artifact completeness: ✅ All required fields present and linked
+  
 RECOMMENDATION
-[PASS with confidence] OR [Needs adjustment: X, Y, Z] OR [FAIL: Major differences found]
-
-Next: [QA_VISUAL validation] OR [Developer fix and re-test]
+  [PASS — all tiers passed, artifacts verified, ready for QA_VISUAL re-spot-check]
+  OR [FLAG — minor acceptable mismatches, see issues; QA_VISUAL review recommended]
+  OR [FAIL — critical issues found; developer fixes required before QA review]
+  
+NOTES FOR QA_VISUAL (the independent verifying agent)
+  - Mockup coverage: [which templates are mockup-backed vs. inference]
+  - Artifact paths: [all diffs and screenshots attached and ready for independent review]
+  - Manual re-checks suggested: [any areas where automated diff may be unreliable]
 ```
+
+**Artifact paths must be absolute, accessible to the next agent** (e.g. file paths in the repo or scratchpad, not in-memory references). **Prose prose claims ("looks good") replace artifacts will cause automatic FAIL during QA_VISUAL review and judge evaluation.**
 
 ---
 
@@ -673,4 +751,24 @@ Next: [QA_VISUAL validation] OR [Developer fix and re-test]
 
 ---
 
-*This ruleset ensures web app implementation is pixel-perfect match to mockup (except data content).*
+## 18. CONVENTIONS ADOPTED — ESTABLISHED QA STANDARDS
+
+This ruleset adopts terminology and workflow patterns from established software QA practice. Future edits should reference and extend these conventions rather than inventing new home-grown language.
+
+- **Smoke testing** (ISTQB glossary): Tier 0 route-health checks (HTTP 200, zero console errors) are shallow "does it even run" smoke tests applied to the full breadth of routes before deeper visual testing proceeds.
+
+- **Structural snapshot testing** (Jest snapshot pattern, Playwright `toMatchAriaSnapshot`): Tier 1 structural comparison uses accessibility-tree snapshots (YAML format) to compare DOM structure independently of pixel rendering — avoids false negatives from font rendering, anti-aliasing, etc.
+
+- **Visual regression testing with thresholds** (BackstopJS, Percy, Playwright `toHaveScreenshot`): Tier 1 visual comparison produces pixel-diff images + numeric diff % with a configurable threshold (e.g. Playwright default: max 5% diff); reports include the artifact (diff image, not prose summary).
+
+- **Equivalence partitioning** (ISTQB glossary): Tier 1 coverage requirement — every distinct page template type is one equivalence class; at least one representative entity per class must be checked against its mockup sample (if mockup exists). No class is skipped; sampling within a class (checking 1 org and claiming "all orgs pass" without checking others) is not permitted for the class-level rule, though Tier 0 smoke-tests all instances.
+
+- **Four-eyes principle / maker-checker** (audit/governance best practice): The QA_VISUAL agent (verifying) must be structurally separate from DEV_UI (building). QA_VISUAL re-derives its own route list from compiled data and re-runs its own captures/diffs rather than accepting DEV_UI's artifacts as proof.
+
+- **Evidence artifacts over prose sign-off** (ISO/IEC/IEEE 29119-3, successor to IEEE 829): Report sign-off requires named artifact files (diff image, snapshot YAML, console log) linked in the output format (§16), not just prose summary ("looks good"). Prose claims unaccompanied by artifacts are not evidence.
+
+**Citation for future edits**: When tightening or extending this ruleset, reference these established standards by name (smoke test, snapshot testing, equivalence partitioning, four-eyes, IEEE 29119-3) rather than re-describing the concept or inventing a new term.
+
+---
+
+*This ruleset ensures web app implementation is pixel-perfect match to mockup (except data content), backed by evidence and independent verification.*
